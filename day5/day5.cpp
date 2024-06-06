@@ -22,12 +22,31 @@ std::vector<std::string> readLinesFromFile(const std::string& filename) {
     return lines;
 }
 
+std::vector<int> extractSeedsFromAlmanac(std::vector<std::string>& almanac)
+{
+    std::vector<int> seeds;
+    std::string line = almanac[0];
+    std::regex numberPattern("\\d+");
+
+    auto iterator_begin = std::sregex_iterator(line.begin(), line.end(), numberPattern);
+    auto iterator_end = std::sregex_iterator();
+
+    for (std::sregex_iterator it = iterator_begin; it != iterator_end; ++it) {
+        std::smatch match = *it;
+        std::string currentNumber = match.str();
+        seeds.push_back(std::stoi(currentNumber));
+    }
+
+    return seeds;
+}
+
 int main()
 {
-    std::string testfile = "testfile.txt";
-    std::string input = "day5.txt";
+    std::string testfile = "test.txt";
+    std::string filename = "day5.txt";
     
     std::vector<std::string> almanac = readLinesFromFile(testfile);
+    std::vector<int> seeds = extractSeedsFromAlmanac(almanac);
     
     return 0;
 }
