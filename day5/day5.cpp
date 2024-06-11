@@ -6,7 +6,7 @@
 #include <map>
 #include <algorithm>
 
-struct Range 
+struct RangeMap
 {
     std::pair<long long int, long long int> sourceRange;
     std::pair<long long int, long long int> destinationRange;
@@ -48,10 +48,10 @@ int findIndexOfLineContainingString(const std::vector<std::string>& data, const 
 }
 
 // Function to extract ranges from a section of the almanac
-std::vector<Range> extractRangesFromSection(const std::vector<std::string>& almanac, const std::string& sectionHeader)
+std::vector<RangeMap> extractRangesFromSection(const std::vector<std::string>& almanac, const std::string& sectionHeader)
 {
     int indexOfSectionHeader = findIndexOfLineContainingString(almanac, sectionHeader);
-    std::vector<Range> ranges;
+    std::vector<RangeMap> ranges;
     std::regex numberPattern("\\d+");
 
     if (indexOfSectionHeader == -1)
@@ -77,7 +77,7 @@ std::vector<Range> extractRangesFromSection(const std::vector<std::string>& alma
         long long int rangeLength = 0;
         int column = 0;
 
-        Range range;
+        RangeMap rm;
         
         for (auto it = iterator_begin; it != iterator_end; ++it)
         {
@@ -97,9 +97,9 @@ std::vector<Range> extractRangesFromSection(const std::vector<std::string>& alma
                 else if (column == 2)
                 {
                     rangeLength = std::stoll(currentNumber);
-                    range.sourceRange = { sourceRangeStart, sourceRangeStart + rangeLength };
-                    range.destinationRange = { destinationRangeStart, destinationRangeStart + rangeLength };
-                    ranges.push_back(range);
+                    rm.sourceRange = { sourceRangeStart, sourceRangeStart + rangeLength };
+                    rm.destinationRange = { destinationRangeStart, destinationRangeStart + rangeLength };
+                    ranges.push_back(rm);
                     column = -1;
                 }
             }
@@ -128,7 +128,7 @@ std::vector<std::pair<long long int, long long int>> mapValues(const std::vector
                                                                 const std::string& sectionHeader) 
 {
     std::vector<std::pair<long long int, long long int>> resultMap;
-    std::vector<Range> ranges = extractRangesFromSection(almanac, sectionHeader);
+    std::vector<RangeMap> ranges = extractRangesFromSection(almanac, sectionHeader);
 
     // Get values from second element of pair from previous map and store in sourceValue
     for (const auto& pair : previousMap)
@@ -167,7 +167,184 @@ std::vector<std::pair<long long int, long long int>> mapValues(const std::vector
     return resultMap;
 }
 
-// Function to map seeds to soil
+std::vector<std::pair<long long int, long long int>> mapRanges(const std::vector<std::string>& almanac,
+    const std::vector<std::pair<long long int, long long int>>& sourceRanges,
+    const std::string& sectionHeader)
+{
+    std::vector<std::pair<long long int, long long int>> destinationRanges;
+    std::vector<RangeMap> rangeMaps = extractRangesFromSection(almanac, sectionHeader);
+
+    for (const std::pair<long long int, long long int>& range : sourceRanges)
+    {
+        long long int sourceRangeLower = range.first;
+        long long int sourceRangeHigher = range.second;
+
+        bool isMapped = false;
+
+        for (const RangeMap& rangeMap : rangeMaps)
+        {
+            long long int rangeMapSourceRangeLower = rangeMap.sourceRange.first;
+            long long int rangeMapSourceRangeHigher = rangeMap.sourceRange.second;
+
+            long long int offset = rangeMap.destinationRange.first - rangeMap.sourceRange.first;
+            
+            // When both sourceRangeLower and sourceRange higher fit within the rangemap
+            if (rangeMapSourceRangeLower <= sourceRangeLower && sourceRangeHigher < rangeMapSourceRangeHigher)
+            {
+                long long int destinationRangeLower = sourceRangeLower + offset;
+                long long int destinationRangeHigher = sourceRangeHigher + offset;
+                
+                std::pair<long long int, long long int> destinationRange;
+
+                destinationRange.first = destinationRangeLower;
+                destinationRange.second = destinationRangeHigher;
+                
+                destinationRanges.push_back(destinationRange);
+
+                isMapped = true;
+            }
+            // When sourceRangeHigher overshoots the rangemap but sourceRangeLower is still within the rangemap
+            else if (((rangeMapSourceRangeLower <= sourceRangeLower) && (sourceRangeLower < rangeMapSourceRangeHigher)) && sourceRangeHigher >= rangeMapSourceRangeHigher)
+            {
+                std::pair<long long int, long long int> mappedRange;
+                std::pair<long long int, long long int> remainder;
+
+                long long int destinationRangeLower = sourceRangeLower + offset;
+                long long int destinationRangeHigher = (rangeMapSourceRangeHigher - 1) + offset;
+
+                mappedRange.first = destinationRangeLower;
+                mappedRange.second = destinationRangeHigher;
+
+                destinationRanges.push_back(mappedRange);
+
+                destinationRangeLower = rangeMapSourceRangeHigher;
+                destinationRangeHigher = sourceRangeHigher;
+
+                remainder.first = destinationRangeLower;
+                remainder.second = destinationRangeHigher;
+
+
+                destinationRanges.push_back(remainder);
+
+                isMapped = true;
+            }
+            // When sourceRangeLower undershoots the rangemap but sourceRangeHigher is still within the rangemap
+            else if (rangeMapSourceRangeLower >= sourceRangeLower && ((rangeMapSourceRangeLower < sourceRangeHigher) && (sourceRangeHigher < rangeMapSourceRangeHigher)))
+            {
+                std::pair<long long int, long long int> mappedRange;
+                std::pair<long long int, long long int> remainder;
+
+                long long int destinationRangeLower = rangeMapSourceRangeLower + offset;
+                long long int destinationRangeHigher = sourceRangeHigher + offset;
+
+                mappedRange.first = destinationRangeLower;
+                mappedRange.second = destinationRangeHigher;
+
+                destinationRanges.push_back(mappedRange);
+
+                destinationRangeLower = sourceRangeLower;
+                destinationRangeHigher = rangeMapSourceRangeLower - 1;
+
+                remainder.first = destinationRangeLower;
+                remainder.second = destinationRangeHigher;
+
+                destinationRanges.push_back(remainder);
+
+                isMapped = true;
+            }
+            // When sourceRangeLower is lower than rangeMapSourceRangeLower and sourceRangeHigher is higher than rangeMapSourceRangeHigher
+            else if (rangeMapSourceRangeLower >= sourceRangeLower && sourceRangeHigher > rangeMapSourceRangeHigher)
+            {
+                std::pair<long long int, long long int> mappedRange;
+                std::pair<long long int, long long int> remainder;
+
+                long long int destinationRangeLower = rangeMapSourceRangeLower + offset;
+                long long int destinationRangeHigher = (rangeMapSourceRangeHigher - 1) + offset;
+
+                mappedRange.first = destinationRangeLower;
+                mappedRange.second = destinationRangeHigher;
+
+                destinationRanges.push_back(mappedRange);
+
+                destinationRangeLower = sourceRangeLower;
+                destinationRangeHigher = rangeMapSourceRangeLower - 1;
+
+                remainder.first = destinationRangeLower;
+                remainder.second = destinationRangeHigher;
+
+                destinationRanges.push_back(remainder);
+
+                destinationRangeLower = rangeMapSourceRangeHigher;
+                destinationRangeHigher = sourceRangeHigher;
+
+                remainder.first = destinationRangeLower;
+                remainder.second = destinationRangeHigher;
+
+                destinationRanges.push_back(remainder);
+
+                isMapped = true;
+            }
+        }
+        if (!isMapped)
+        {
+            std::pair<long long int, long long int> mappedRange;
+
+            long long int destinationRangeLower = sourceRangeLower;
+            long long int destinationRangeHigher = sourceRangeHigher;
+
+            mappedRange.first = destinationRangeLower;
+            mappedRange.second = destinationRangeHigher;
+
+            destinationRanges.push_back(mappedRange);
+        }
+    }
+    
+    return destinationRanges;
+}
+
+std::vector<std::pair<long long int, long long int>> getSeedRanges(const std::vector<std::string>& almanac)
+{
+    // Get seeds from the first line of almanac
+    std::vector<std::pair<long long int, long long int>> seedRanges;
+    std::pair<long long int, long long int> seedRange;
+
+    std::string line = almanac.front();
+    std::regex numberPattern("\\d+");
+
+    auto iterator_begin = std::sregex_iterator(line.begin(), line.end(), numberPattern);
+    auto iterator_end = std::sregex_iterator();
+
+    bool isFirst = true;
+
+    for (auto it = iterator_begin; it != iterator_end; ++it)
+    {
+        std::smatch match = *it;
+        std::string currentNumber = match.str();
+
+        try
+        {
+            if (isFirst)
+            {
+                seedRange.first = std::stoll(currentNumber);
+                isFirst = false;
+            }
+            else
+            {
+                seedRange.second = seedRange.first + std::stoll(currentNumber);
+                isFirst = true;
+                seedRanges.push_back(seedRange);
+            }
+        }
+        catch (const std::out_of_range& e)
+        {
+            std::cerr << "Error: Seed number out of range" << std::endl;
+        }
+    }
+
+    return seedRanges;
+}
+
+// Function to map seed to soil
 std::vector<std::pair<long long int, long long int>> mapSeedToSoil(const std::vector<std::string>& almanac) 
 {
     std::vector<std::pair<long long int, long long int>> seedToSoilMap;
@@ -196,18 +373,18 @@ std::vector<std::pair<long long int, long long int>> mapSeedToSoil(const std::ve
     }
 
     // Get ranges from under "seed-to-soil map:"
-    std::vector<Range> ranges = extractRangesFromSection(almanac, "seed-to-soil map:");
+    std::vector<RangeMap> ranges = extractRangesFromSection(almanac, "seed-to-soil map:");
 
     for (long long int seed : seeds)
     {
         bool found = false;
         
-        for (const Range& range : ranges)
+        for (const RangeMap& rangeMap : ranges)
         {
-            long long int seedLower = range.sourceRange.first;
-            long long int seedHigher = range.sourceRange.second;
-            long long int soilLower = range.destinationRange.first;
-            long long int soilHigher = range.destinationRange.second;
+            long long int seedLower = rangeMap.sourceRange.first;
+            long long int seedHigher = rangeMap.sourceRange.second;
+            long long int soilLower = rangeMap.destinationRange.first;
+            long long int soilHigher = rangeMap.destinationRange.second;
 
             long long int seedSoilOffset = soilLower - seedLower;
             
@@ -264,11 +441,46 @@ void runPartOne(const std::string& filename)
     }
 }
 
+void runPartTwo(const std::string& filename)
+{
+    std::vector<std::string> almanac = readLinesFromFile(filename);
+
+    if (almanac.empty())
+    {
+        std::cerr << "Error: Almanac is empty." << std::endl;
+        return;
+    }
+
+    std::vector<std::pair<long long int, long long int>> seedRanges = getSeedRanges(almanac);
+    std::vector<std::pair<long long int, long long int>> soilRanges = mapRanges(almanac, seedRanges, "seed-to-soil map:");
+    std::vector<std::pair<long long int, long long int>> fertilizerRanges = mapRanges(almanac, soilRanges, "soil-to-fertilizer map:");
+    std::vector<std::pair<long long int, long long int>> waterRanges = mapRanges(almanac, fertilizerRanges, "fertilizer-to-water map:");
+    std::vector<std::pair<long long int, long long int>> lightRanges = mapRanges(almanac, waterRanges, "water-to-light map:");
+    std::vector<std::pair<long long int, long long int>> temperatureRanges = mapRanges(almanac, lightRanges, "light-to-temperature map:");
+    std::vector<std::pair<long long int, long long int>> humidityRanges = mapRanges(almanac, temperatureRanges, "temperature-to-humidity map:");
+    std::vector<std::pair<long long int, long long int>> locationRanges = mapRanges(almanac, humidityRanges, "humidity-to-location map:");
+
+    if (!locationRanges.empty())
+    {
+        // Sort pairs by their second element in ascending order
+        std::sort(locationRanges.begin(), locationRanges.end(), [](const std::pair<long long int, long long int>& a, const std::pair<long long int, long long int>& b) {
+            return a.first < b.first;
+            });
+
+        std::cout << "Lowest location: " << locationRanges.front().first << std::endl;
+    }
+    else {
+        std::cerr << "Error: No humidity to location mappings found." << std::endl;
+    }
+    return;
+}
+
 int main() {
     std::string filename = "day5.txt";
     std::string testfile = "test.txt";
     
-    runPartOne(filename);
+    //runPartOne(filename);
+    runPartTwo(filename);
 
     return 0;
 }
