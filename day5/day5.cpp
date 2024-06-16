@@ -168,10 +168,11 @@ std::vector<std::pair<long long int, long long int>> mapValues(const std::vector
 }
 
 std::vector<std::pair<long long int, long long int>> mapRanges(const std::vector<std::string>& almanac,
-    const std::vector<std::pair<long long int, long long int>>& sourceRanges,
-    const std::string& sectionHeader)
+                                                                const std::vector<std::pair<long long int, long long int>>& sourceRanges,
+                                                                const std::string& sectionHeader)
 {
     std::vector<std::pair<long long int, long long int>> destinationRanges;
+    std::vector<std::pair<long long int, long long int>> remainders;
     std::vector<RangeMap> rangeMaps = extractRangesFromSection(almanac, sectionHeader);
 
     for (const std::pair<long long int, long long int>& range : sourceRanges)
@@ -189,6 +190,7 @@ std::vector<std::pair<long long int, long long int>> mapRanges(const std::vector
             long long int offset = rangeMap.destinationRange.first - rangeMap.sourceRange.first;
             
             // When both sourceRangeLower and sourceRange higher fit within the rangemap
+            // Map sourceRanges to destinationRanges using offset
             if (rangeMapSourceRangeLower <= sourceRangeLower && sourceRangeHigher < rangeMapSourceRangeHigher)
             {
                 long long int destinationRangeLower = sourceRangeLower + offset;
@@ -204,6 +206,8 @@ std::vector<std::pair<long long int, long long int>> mapRanges(const std::vector
                 isMapped = true;
             }
             // When sourceRangeHigher overshoots the rangemap but sourceRangeLower is still within the rangemap
+            // Map sourceRanges to destinationRanges using offset
+            // Split remainder ranges into separate vector
             else if (((rangeMapSourceRangeLower <= sourceRangeLower) && (sourceRangeLower < rangeMapSourceRangeHigher)) && sourceRangeHigher >= rangeMapSourceRangeHigher)
             {
                 std::pair<long long int, long long int> mappedRange;
@@ -223,12 +227,13 @@ std::vector<std::pair<long long int, long long int>> mapRanges(const std::vector
                 remainder.first = destinationRangeLower;
                 remainder.second = destinationRangeHigher;
 
-
-                destinationRanges.push_back(remainder);
+                remainders.push_back(remainder);
 
                 isMapped = true;
             }
             // When sourceRangeLower undershoots the rangemap but sourceRangeHigher is still within the rangemap
+            // Map sourceRanges to destinationRanges using offset
+            // Split remainder ranges into separate vector
             else if (rangeMapSourceRangeLower >= sourceRangeLower && ((rangeMapSourceRangeLower < sourceRangeHigher) && (sourceRangeHigher < rangeMapSourceRangeHigher)))
             {
                 std::pair<long long int, long long int> mappedRange;
@@ -248,11 +253,13 @@ std::vector<std::pair<long long int, long long int>> mapRanges(const std::vector
                 remainder.first = destinationRangeLower;
                 remainder.second = destinationRangeHigher;
 
-                destinationRanges.push_back(remainder);
+                remainders.push_back(remainder);
 
                 isMapped = true;
             }
             // When sourceRangeLower is lower than rangeMapSourceRangeLower and sourceRangeHigher is higher than rangeMapSourceRangeHigher
+            // Map sourceRanges to destinationRanges using offset
+            // Split remainder ranges into separate vector
             else if (rangeMapSourceRangeLower >= sourceRangeLower && sourceRangeHigher > rangeMapSourceRangeHigher)
             {
                 std::pair<long long int, long long int> mappedRange;
@@ -272,7 +279,7 @@ std::vector<std::pair<long long int, long long int>> mapRanges(const std::vector
                 remainder.first = destinationRangeLower;
                 remainder.second = destinationRangeHigher;
 
-                destinationRanges.push_back(remainder);
+                remainders.push_back(remainder);
 
                 destinationRangeLower = rangeMapSourceRangeHigher;
                 destinationRangeHigher = sourceRangeHigher;
@@ -280,11 +287,12 @@ std::vector<std::pair<long long int, long long int>> mapRanges(const std::vector
                 remainder.first = destinationRangeLower;
                 remainder.second = destinationRangeHigher;
 
-                destinationRanges.push_back(remainder);
+                remainders.push_back(remainder);
 
                 isMapped = true;
             }
         }
+        // If sourceRange doesn't fit any mappings then add directly into destinationRanges vector
         if (!isMapped)
         {
             std::pair<long long int, long long int> mappedRange;
@@ -296,6 +304,134 @@ std::vector<std::pair<long long int, long long int>> mapRanges(const std::vector
             mappedRange.second = destinationRangeHigher;
 
             destinationRanges.push_back(mappedRange);
+        }
+    }
+    // If we have any remainder ranges left over from splitting them from above, do a second pass and check if they fit any maps
+    // and add them to the destinationRanges vector with offset
+    if (remainders.size() > 0)
+    {
+        for (const std::pair<long long int, long long int>& remainder : remainders)
+        {
+            long long int sourceRangeLower = remainder.first;
+            long long int sourceRangeHigher = remainder.second;
+
+            bool isMapped = false;
+
+            for (const RangeMap& rangeMap : rangeMaps)
+            {
+                long long int rangeMapSourceRangeLower = rangeMap.sourceRange.first;
+                long long int rangeMapSourceRangeHigher = rangeMap.sourceRange.second;
+
+                long long int offset = rangeMap.destinationRange.first - rangeMap.sourceRange.first;
+
+                // When both sourceRangeLower and sourceRange higher fit within the rangemap
+                if (rangeMapSourceRangeLower <= sourceRangeLower && sourceRangeHigher < rangeMapSourceRangeHigher)
+                {
+                    long long int destinationRangeLower = sourceRangeLower + offset;
+                    long long int destinationRangeHigher = sourceRangeHigher + offset;
+
+                    std::pair<long long int, long long int> destinationRange;
+
+                    destinationRange.first = destinationRangeLower;
+                    destinationRange.second = destinationRangeHigher;
+
+                    destinationRanges.push_back(destinationRange);
+
+                    isMapped = true;
+                }
+                // When sourceRangeHigher overshoots the rangemap but sourceRangeLower is still within the rangemap
+                else if (((rangeMapSourceRangeLower <= sourceRangeLower) && (sourceRangeLower < rangeMapSourceRangeHigher)) && sourceRangeHigher >= rangeMapSourceRangeHigher)
+                {
+                    std::pair<long long int, long long int> mappedRange;
+                    std::pair<long long int, long long int> remainder;
+
+                    long long int destinationRangeLower = sourceRangeLower + offset;
+                    long long int destinationRangeHigher = (rangeMapSourceRangeHigher - 1) + offset;
+
+                    mappedRange.first = destinationRangeLower;
+                    mappedRange.second = destinationRangeHigher;
+
+                    destinationRanges.push_back(mappedRange);
+
+                    //destinationRangeLower = rangeMapSourceRangeHigher;
+                    //destinationRangeHigher = sourceRangeHigher;
+
+                    //remainder.first = destinationRangeLower;
+                    //remainder.second = destinationRangeHigher;
+
+                    //remainders.push_back(remainder);
+
+                    isMapped = true;
+                }
+                // When sourceRangeLower undershoots the rangemap but sourceRangeHigher is still within the rangemap
+                else if (rangeMapSourceRangeLower >= sourceRangeLower && ((rangeMapSourceRangeLower < sourceRangeHigher) && (sourceRangeHigher < rangeMapSourceRangeHigher)))
+                {
+                    std::pair<long long int, long long int> mappedRange;
+                    std::pair<long long int, long long int> remainder;
+
+                    long long int destinationRangeLower = rangeMapSourceRangeLower + offset;
+                    long long int destinationRangeHigher = sourceRangeHigher + offset;
+
+                    mappedRange.first = destinationRangeLower;
+                    mappedRange.second = destinationRangeHigher;
+
+                    destinationRanges.push_back(mappedRange);
+
+                    //destinationRangeLower = sourceRangeLower;
+                    //destinationRangeHigher = rangeMapSourceRangeLower - 1;
+
+                    //remainder.first = destinationRangeLower;
+                    //remainder.second = destinationRangeHigher;
+
+                    //remainders.push_back(remainder);
+
+                    isMapped = true;
+                }
+                // When sourceRangeLower is lower than rangeMapSourceRangeLower and sourceRangeHigher is higher than rangeMapSourceRangeHigher
+                else if (rangeMapSourceRangeLower >= sourceRangeLower && sourceRangeHigher > rangeMapSourceRangeHigher)
+                {
+                    std::pair<long long int, long long int> mappedRange;
+                    std::pair<long long int, long long int> remainder;
+
+                    long long int destinationRangeLower = rangeMapSourceRangeLower + offset;
+                    long long int destinationRangeHigher = (rangeMapSourceRangeHigher - 1) + offset;
+
+                    mappedRange.first = destinationRangeLower;
+                    mappedRange.second = destinationRangeHigher;
+
+                    destinationRanges.push_back(mappedRange);
+
+                    destinationRangeLower = sourceRangeLower;
+                    destinationRangeHigher = rangeMapSourceRangeLower - 1;
+
+                    //remainder.first = destinationRangeLower;
+                    //remainder.second = destinationRangeHigher;
+
+                    //remainders.push_back(remainder);
+
+                    //destinationRangeLower = rangeMapSourceRangeHigher;
+                    //destinationRangeHigher = sourceRangeHigher;
+
+                    //remainder.first = destinationRangeLower;
+                    //remainder.second = destinationRangeHigher;
+
+                    //remainders.push_back(remainder);
+
+                    isMapped = true;
+                }
+            }
+            //if (!isMapped)
+            //{
+            //    std::pair<long long int, long long int> mappedRange;
+
+            //    long long int destinationRangeLower = sourceRangeLower;
+            //    long long int destinationRangeHigher = sourceRangeHigher;
+
+            //    mappedRange.first = destinationRangeLower;
+            //    mappedRange.second = destinationRangeHigher;
+
+            //    destinationRanges.push_back(mappedRange);
+            //}
         }
     }
     
